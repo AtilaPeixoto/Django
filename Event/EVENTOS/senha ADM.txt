@@ -1,0 +1,4 @@
+login = PEIXOTO
+senha = ATILA
+email = atila.kessler
+superuser

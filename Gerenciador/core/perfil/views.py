@@ -2,15 +2,33 @@ from django.shortcuts import render, redirect
 from .models import Conta, Categoria
 from django.contrib import messages
 from django.contrib.messages import constants
+from extrato.models import Valores
+from django.db.models import Sum
+from datetime import datetime
+from .utils import calcula_total, calcula_equilibrio_financeiro
 
 # Create your views here.
 
 def home(request):
+    valores = Valores.objects.filter(data__month=datetime.now().month)
+    entradas = valores.filter(tipo='E')
+    saidas = valores.filter(tipo='S')
+    
+    total_entradas = calcula_total(entradas, 'valor')
+    total_saidas = calcula_total(saidas, 'valor')
+    
     contas = Conta.objects.all()
     saldo_total = calcula_total(contas, 'valor')
-    return render(request, 'home.html', {'contas': contas, 'saldo_total': saldo_total,})
-
-
+    
+    percentual_gastos_essenciais, percentual_gastos_nao_essenciais = calcula_equilibrio_financeiro()
+    
+    return render(request, 'home.html', {'contas': contas, 
+                                         'saldo_total': saldo_total,
+                                         'total_entradas': total_entradas, 
+                                         'total_saidas': total_saidas,
+                                         'percentual_gastos_essenciais': int(percentual_gastos_essenciais),
+                                         'percentual_gastos_nao_essenciais': int(percentual_gastos_nao_essenciais),
+                                         })
 
 
 def gerenciar(request):
@@ -86,9 +104,11 @@ def update_categoria(request, id):
     return redirect('/perfil/gerenciar/')
 
 
-def calcula_total(obj, campo):
-    total = 0
-    for i in obj:
-        total += getattr(i, campo)
+def dashboard(request):
+    dados = {}
+    categorias = Categoria.objects.all()
 
-    return total
+    for categoria in categorias:
+        dados[categoria.categoria] = Valores.objects.filter(categoria=categoria).aggregate(Sum('valor'))['valor__sum']
+
+    return render(request, 'dashboard.html', {'labels': list(dados.keys()), 'values': list(dados.values())})
